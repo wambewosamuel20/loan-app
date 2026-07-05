@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+    <div class="bg-white p-5 rounded-xl border shadow-sm">
+        <p class="text-xs font-bold text-gray-400 uppercase">Total System Submissions</p>
+        <p class="text-2xl font-black text-gray-800 mt-1">{{ total }}</p>
+    </div>
+    <div class="bg-white p-5 rounded-xl border shadow-sm">
+        <p class="text-xs font-bold text-gray-400 uppercase">Awaiting Action</p>
+        <p class="text-2xl font-black text-yellow-600 mt-1">{{ pending }}</p>
+    </div>
+    <div class="bg-white p-5 rounded-xl border shadow-sm">
+        <p class="text-xs font-bold text-gray-400 uppercase">Total Disbursed Capital</p>
+        <p class="text-2xl font-black text-green-700 mt-1">UGX {{ "{:,.0f}".format(approved_amt) }}</p>
+    </div>
+    <div class="bg-white p-5 rounded-xl border shadow-sm">
+        <p class="text-xs font-bold text-gray-400 uppercase">System Rejection Rate</p>
+        <p class="text-2xl font-black text-red-600 mt-1">{{ rej_rate }}%</p>
+    </div>
+</div>
+
+<div class="bg-white p-4 rounded-xl border shadow-sm mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <form method="GET" class="flex flex-wrap items-center gap-3 w-full">
+        <input type="text" name="search" value="{{ search_query }}" placeholder="Search by Applicant Name or NIN..." class="p-2 border rounded-lg text-sm min-w-[280px]">
+        
+        <select name="status" class="p-2 border rounded-lg text-sm">
+            <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All Status Streams</option>
+            <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>Pending Enquiries</option>
+            <option value="approved" {% if status_filter == 'approved' %}selected{% endif %}>Approved Portfolios</option>
+            <option value="rejected" {% if status_filter == 'rejected' %}selected{% endif %}>Rejected Portfolios</option>
+        </select>
+        
+        <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold px-4 py-2 rounded-lg transition">Apply Filters</button>
+        <a href="{{ url_for('admin_dashboard') }}" class="text-xs text-gray-400 hover:underline">Clear Filters</a>
+    </form>
+</div>
+
+<div class="bg-white rounded-xl border shadow-sm overflow-hidden">
+    <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+            <thead>
+                <tr class="bg-gray-100 border-b text-xs font-bold text-gray-600 uppercase">
+                    <th class="p-4">Application Details</th>
+                    <th class="p-4">NIN / Personal Context</th>
+                    <th class="p-4">Guarantor Referrals (3)</th>
+                    <th class="p-4">Financial metrics</th>
+                    <th class="p-4">Current Status</th>
+                    <th class="p-4 text-center">Operation Panel Action</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y text-sm text-gray-700">
+                {% if not applications %}
+                <tr>
+                    <td colspan="6" class="p-8 text-center text-gray-400">No applications found matching query constraints.</td>
+                </tr>
+                {% endif %}
+                {% for app in applications %}
+                <tr class="hover:bg-gray-50/70 transition">
+                    <td class="p-4 space-y-1">
+                        <div class="font-bold text-gray-900">{{ app.full_name }}</div>
+                        <div class="text-xs text-gray-500">{{ app.email }}</div>
+                        <div class="text-xs text-gray-500">{{ app.phone_number }}</div>
+                        <div class="text-[11px] text-gray-400 font-mono">Date Submitted: {{ app.submitted_at.strftime('%Y-%m-%d') }}</div>
+                    </td>
+                    <td class="p-4 space-y-1">
+                        <span class="bg-blue-50 text-blue-800 text-xs font-mono font-bold px-2 py-0.5 rounded tracking-wide uppercase">{{ app.nin_number }}</span>
+                        <div class="text-xs text-gray-600">DOB: {{ app.date_of_birth }} ({{ app.gender }})</div>
+                        <div class="text-xs text-gray-400 truncate max-w-[180px]">Address: {{ app.physical_address }}</div>
+                    </td>
+                    <td class="p-4">
+                        <div class="space-y-1">
+                            {% for ref in app.referrals %}
+                            <div class="text-xs leading-none text-gray-600">
+                                🧑‍💼 <span class="font-semibold">{{ ref.referral_name }}</span> ({{ ref.referral_relationship }}) - <span class="font-mono text-gray-500">{{ ref.referral_phone }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </td>
+                    <td class="p-4 space-y-1">
+                        <div class="text-xs text-gray-500">Income: UGX {{ "{:,.0f}".format(app.monthly_income) }}</div>
+                        <div class="text-xs font-semibold text-blue-700">Requested: UGX {{ "{:,.0f}".format(app.loan_amount_requested) }}</div>
+                        {% if app.application_status == 'approved' %}
+                            <div class="text-xs font-bold text-green-700">Approved: UGX {{ "{:,.0f}".format(app.loan_amount_approved) }}</div>
+                        {% endif %}
+                    </td>
+                    <td class="p-4">
+                        {% if app.application_status == 'pending' %}
+                            <span class="bg-yellow-100 text-yellow-800 text-xs px-2.5 py-1 rounded-full font-bold">Pending</span>
+                        {% elif app.application_status == 'approved' %}
+                            <span class="bg-green-100 text-green-800 text-xs px-2.5 py-1 rounded-full font-bold">Approved</span>
+                        {% else %}
+                            <span class="bg-red-100 text-red-800 text-xs px-2.5 py-1 rounded-full font-bold">Rejected</span>
+                        {% endif %}
+                    </td>
+                    <td class="p-4 bg-gray-50/50">
+                        <form method="POST" action="{{ url_for('update_status', app_id=app.id) }}" class="space-y-2 max-w-[180px] mx-auto">
+                            <select name="operation_status" onchange="toggleOperationInputs(this, '{{ app.id }}')" class="w-full p-1.5 bg-white border rounded text-xs font-medium focus:ring-1 focus:ring-indigo-500">
+                                <option value="pending" {% if app.application_status == 'pending' %}selected{% endif %}>Pending</option>
+                                <option value="approved" {% if app.application_status == 'approved' %}selected{% endif %}>Approve Loan</option>
+                                <option value="rejected" {% if app.application_status == 'rejected' %}selected{% endif %}>Reject Loan</option>
+                            </select>
+
+                            <div id="reject-reason-container-{{ app.id }}" class="hidden">
+                                <textarea name="rejection_reason" placeholder="Mandatory rejection reason text..." class="w-full p-1 border rounded text-xs" rows="2">{{ app.rejection_reason or '' }}</textarea>
+                            </div>
+
+                            <div id="approve-amount-container-{{ app.id }}" class="hidden">
+                                <label class="text-[10px] text-gray-400 font-bold block">Modify Approved Amount (UGX):</label>
+                                <input type="number" name="approved_amount" value="{{ app.loan_amount_requested }}" class="w-full p-1 border rounded text-xs font-bold text-green-700">
+                            </div>
+
+                            <button type="submit" class="w-full bg-gray-800 hover:bg-gray-900 text-white text-[11px] font-bold py-1 px-2 rounded tracking-wide transition uppercase shadow-sm">Save Action</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    function toggleOperationInputs(selectElement, appId) {
+        const rejectBox = document.getElementById(`reject-reason-container-${appId}`);
+        const approveBox = document.getElementById(`approve-amount-container-${appId}`);
+        
+        rejectBox.classList.add('hidden');
+        approveBox.classList.add('hidden');
+        
+        if (selectElement.value === 'rejected') {
+            rejectBox.classList.remove('hidden');
+            rejectBox.querySelector('textarea').required = true;
+        } else if (selectElement.value === 'approved') {
+            approveBox.classList.remove('hidden');
+        }
+    }
+    
+    // Auto-initialize form visibility constraints on load based on default configurations
+    document.addEventListener("DOMContentLoaded", function() {
+        document.querySelectorAll('select[name="operation_status"]').forEach(select => {
+            if(select.value !== 'pending') {
+                toggleOperationInputs(select, select.onchange.toString().match(/'(\d+)'/)[1]);
+            }
+        });
+    });
+</script>
+{% endblock %}
