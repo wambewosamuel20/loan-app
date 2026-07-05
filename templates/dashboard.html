@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    
+    <div class="lg:col-span-1 space-y-4">
+        <h3 class="text-lg font-bold text-gray-700 uppercase tracking-wider">Your Loan Records</h3>
+        {% if not applications %}
+            <div class="bg-amber-50 border border-amber-200 p-4 rounded-xl text-amber-800 text-sm">
+                No history. Complete the dynamic form to submit your first application.
+            </div>
+        {% else %}
+            {% for app in applications %}
+                <div class="bg-white p-5 rounded-xl border shadow-sm space-y-3">
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs text-gray-400 font-mono">ID: #{{ app.id }}</span>
+                        {% if app.application_status == 'pending' %}
+                            <span class="bg-yellow-100 text-yellow-800 text-xs px-2.5 py-1 rounded-full font-bold">Pending</span>
+                        {% elif app.application_status == 'approved' %}
+                            <span class="bg-green-100 text-green-800 text-xs px-2.5 py-1 rounded-full font-bold">Approved</span>
+                        {% else %}
+                            <span class="bg-red-100 text-red-800 text-xs px-2.5 py-1 rounded-full font-bold">Rejected</span>
+                        {% endif %}
+                    </div>
+                    <div class="text-sm text-gray-600">
+                        <p><strong>Requested:</strong> UGX {{ "{:,.0f}".format(app.loan_amount_requested) }}</p>
+                        {% if app.application_status == 'approved' %}
+                            <p class="text-green-700 font-semibold"><strong>Approved Amt:</strong> UGX {{ "{:,.0f}".format(app.loan_amount_approved) }}</p>
+                        {% endif %}
+                        <p class="text-xs text-gray-400 mt-2">Submitted: {{ app.submitted_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                    </div>
+                    {% if app.rejection_reason %}
+                        <div class="bg-red-50 p-2.5 rounded border border-red-100 text-xs text-red-700">
+                            <strong>Reason:</strong> {{ app.rejection_reason }}
+                        </div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        {% endif %}
+    </div>
+
+    <div class="lg:col-span-2">
+        {% if has_pending %}
+            <div class="bg-white p-8 rounded-xl border shadow-sm text-center">
+                <div class="text-4xl mb-3">⏳</div>
+                <h3 class="text-xl font-bold text-gray-700">Application Under Review</h3>
+                <p class="text-gray-500 mt-1 text-sm">You cannot submit a new application while your current entry is pending decision resolution.</p>
+            </div>
+        {% else %}
+            <div class="bg-white p-6 md:p-8 rounded-xl border shadow-sm">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-xl font-bold text-gray-800">New Loan Application</h2>
+                    <span id="step-indicator" class="bg-indigo-100 text-indigo-800 font-bold px-3 py-1 rounded text-xs">Step 1 of 4</span>
+                </div>
+
+                <form id="loanForm" method="POST" class="space-y-6">
+                    <div id="step-1" class="form-step space-y-4">
+                        <h4 class="font-semibold text-gray-700 border-b pb-2">Step 1: Personal Information</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Full Name</label>
+                                <input type="text" name="full_name" required class="w-full p-2 border rounded">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Date of Birth</label>
+                                <input type="date" name="date_of_birth" required class="w-full p-2 border rounded">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Gender</label>
+                                <select name="gender" class="w-full p-2 border rounded">
+                                    <option>Male</option><option>Female</option><option>Other</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Phone Contact</label>
+                                <input type="text" name="phone_number" required class="w-full p-2 border rounded">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 gap-4">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Email Address</label>
+                                <input type="email" name="email" required class="w-full p-2 border rounded">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Physical Residential Address</label>
+                                <textarea name="physical_address" rows="2" required class="w-full p-2 border rounded"></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="step-2" class="form-step hidden space-y-4">
+                        <h4 class="font-semibold text-gray-700 border-b pb-2">Step 2: Legal Identification (Uganda NIN)</h4>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-600 uppercase mb-1">National Identification Number (NIN)</label>
+                            <input type="text" name="nin_number" id="nin_number" placeholder="CM123456789XYZ" required class="w-full p-2 border rounded font-mono uppercase tracking-widest">
+                            <p class="text-xs text-gray-400 mt-1">Must be exactly 14 characters long.</p>
+                        </div>
+                    </div>
+
+                    <div id="step-3" class="form-step hidden space-y-4">
+                        <h4 class="font-semibold text-gray-700 border-b pb-2">Step 3: Three Mandatory Guarantee Referrals</h4>
+                        {% for i in range(1, 4) %}
+                        <div class="p-3 bg-gray-50 rounded border space-y-2">
+                            <p class="text-xs font-bold text-indigo-700">Referral Contact #{{ i }}</p>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+                                <input type="text" name="ref_name_{{ i }}" placeholder="Full Name" required class="p-2 border rounded text-sm">
+                                <input type="text" name="ref_phone_{{ i }}" placeholder="Phone Number" required class="p-2 border rounded text-sm">
+                                <input type="text" name="ref_rel_{{ i }}" placeholder="Relationship" required class="p-2 border rounded text-sm">
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <div id="step-4" class="form-step hidden space-y-4">
+                        <h4 class="font-semibold text-gray-700 border-b pb-2">Step 4: Financial Data & Submit Verification</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Monthly Earned Income (UGX)</label>
+                                <input type="number" name="monthly_income" required class="w-full p-2 border rounded">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Employment Status</label>
+                                <select name="employment_status" class="w-full p-2 border rounded">
+                                    <option>Employed Full-Time</option><option>Contract / Self-Employed</option><option>Unemployed</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Loan Amount Requested (UGX)</label>
+                                <input type="number" name="loan_amount" required class="w-full p-2 border rounded text-lg font-bold text-green-700">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Target Loan Purpose</label>
+                                <input type="text" name="loan_purpose" placeholder="e.g., Business Expansion" required class="w-full p-2 border rounded">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-between items-center pt-4 border-t">
+                        <button type="button" id="prevBtn" onclick="changeStep(-1)" class="bg-gray-200 text-gray-700 font-bold px-4 py-2 rounded hidden">Previous</button>
+                        <button type="button" id="nextBtn" onclick="changeStep(1)" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-2 rounded ml-auto">Next Step</button>
+                        <button type="submit" id="submitBtn" class="bg-green-600 hover:bg-green-700 text-white font-bold px-6 py-2 rounded hidden ml-auto">Submit Final Application</button>
+                    </div>
+                </form>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+    let currentStep = 1;
+    const totalSteps = 4;
+
+    function changeStep(direction) {
+        if (direction === 1 && !validateCurrentStep()) return;
+
+        document.getElementById(`step-${currentStep}`).classList.add('hidden');
+        currentStep += direction;
+        document.getElementById(`step-${currentStep}`).classList.remove('hidden');
+
+        // Toggle UI Action states
+        document.getElementById('prevBtn').classList.toggle('hidden', currentStep === 1);
+        document.getElementById('nextBtn').classList.toggle('hidden', currentStep === totalSteps);
+        document.getElementById('submitBtn').classList.toggle('hidden', currentStep !== totalSteps);
+        document.getElementById('step-indicator').innerText = `Step ${currentStep} of ${totalSteps}`;
+    }
+
+    function validateCurrentStep() {
+        const activeContainer = document.getElementById(`step-${currentStep}`);
+        const inputs = activeContainer.querySelectorAll('input, select, textarea');
+        
+        for (let input of inputs) {
+            if (!input.checkValidity()) {
+                input.reportValidity();
+                return false;
+            }
+        }
+        
+        // Custom 14-char validation rule evaluation for local Uganda conditions 
+        if (currentStep === 2) {
+            const ninVal = document.getElementById('nin_number').value.trim();
+            if (ninVal.length !== 14) {
+                alert('Invalid Data Length: Uganda NIN must contain exactly 14 alphanumeric characters.');
+                return false;
+            }
+        }
+        return true;
+    }
+</script>
+{% endblock %}
